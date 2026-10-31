@@ -1,0 +1,8 @@
+{
+  "model": "Qwen2.5-3B-Instruct",
+  "n": 24,
+  "format_rate": 1.0,
+  "mean_digit_mass": 0.9999999980445562,
+  "mean_seconds": 1.7470291666666666,
+  "source": "training respondents only"
+}

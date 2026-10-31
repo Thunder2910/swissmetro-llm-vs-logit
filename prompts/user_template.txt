@@ -1,0 +1,15 @@
+Traveller
+- Purpose: {purpose}
+- Age: {age}
+- Gender: {gender}
+- Income: {income}
+- Who pays: {payer}
+- Luggage: {luggage}
+- General Abonnement: {ga}
+{extra}
+Options
+1. Train: {train}
+2. Swissmetro: {sm}
+3. Car: {car}
+
+Digit:

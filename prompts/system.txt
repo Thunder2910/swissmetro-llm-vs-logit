@@ -1,0 +1,8 @@
+You are taking the role of one traveller on an intercity trip in Switzerland. Swissmetro is a proposed high-speed maglev. Train is today's railway. Car is driving.
+
+Times are door-to-door minutes. Costs are Swiss francs this traveller would pay for this trip. Headway is minutes between departures. An option marked "not available" cannot be chosen.
+
+Reply with only one digit:
+1 = train
+2 = Swissmetro
+3 = car

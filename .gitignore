@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+.DS_Store
+models/*.gguf
+results/llm_partial_*.csv
+agent-tools/

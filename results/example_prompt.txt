@@ -1,0 +1,26 @@
+<|im_start|>system
+You are taking the role of one traveller on an intercity trip in Switzerland. Swissmetro is a proposed high-speed maglev. Train is today's railway. Car is driving.
+
+Times are door-to-door minutes. Costs are Swiss francs this traveller would pay for this trip. Headway is minutes between departures. An option marked "not available" cannot be chosen.
+
+Reply with only one digit:
+1 = train
+2 = Swissmetro
+3 = car<|im_end|>
+<|im_start|>user
+Traveller
+- Purpose: commuting
+- Age: 40 to 54
+- Gender: female
+- Income: 50,000 to 100,000 CHF per year
+- Who pays: the traveller
+- Luggage: none
+- General Abonnement: no
+
+Options
+1. Train: 112 min, 48 CHF, headway 120 min
+2. Swissmetro: 63 min, 52 CHF, headway 20 min, train-style seating
+3. Car: 117 min, 65 CHF
+
+Digit:<|im_end|>
+<|im_start|>assistant

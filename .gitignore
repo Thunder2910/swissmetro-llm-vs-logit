@@ -6,6 +6,16 @@ __pycache__/
 .mypy_cache/
 *.egg-info/
 .DS_Store
+# Quantised weights. bash run.sh downloads these; see models/README.md.
+*.gguf
 models/*.gguf
+models/*.gguf.*
+
+# Local secrets, if any are ever created. This study does not use an API key.
+.env
+.env.*
+*.pem
+
+results/*.log
 results/llm_partial_*.csv
 agent-tools/

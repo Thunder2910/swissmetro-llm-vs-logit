@@ -1351,5 +1351,13 @@
     ]
   },
   "n_paying": 76,
-  "seconds_model": 0.4907120669995493
+  "shock_sample": {
+    "n": 84,
+    "n_people": 71,
+    "n_paying": 76,
+    "parent_n": 84,
+    "seed": 53,
+    "max_per_person": 2
+  },
+  "seconds_model": 0.5059386140001152
 }

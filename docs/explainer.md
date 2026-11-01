@@ -220,15 +220,18 @@ available mode. It is asked to reply with the digit 1, 2, or 3.
 Nothing is sampled. The next-token probabilities of the digit tokens are
 renormalised over the modes that exist in that task. Temperature does not
 enter. Repeating the run with the same weights and the same prompt file
-gives the same distribution. The weights are Qwen2.5-1.5B-Instruct, stored
-as a 4-bit GGUF (`Q4_K_M`) and run locally. Quantisation is a further
-approximation on top of an already small model.
+gives the same distribution. The weights are Qwen2.5-Instruct at 1.5B,
+3B, and 7B parameters, each stored as a 4-bit GGUF (`Q4_K_M`) and run
+locally. The 7B file is two shards. Quantisation is a further
+approximation. The prompt is the same text for all three.
 
-This is a hard comparison for the LLM and an easy one for the logit. The
-logit is fitted to 602 other respondents from this same survey. The LLM
-sees none of their choices. Beating the logit would be surprising. Losing
-to it is not, by itself, evidence that "LLMs cannot represent travellers".
-It is evidence about this model, this prompt, and this sample.
+This is a hard comparison for the language model and an easy one for the
+logit. The logit is fitted to 602 other respondents from this same survey.
+The language model sees none of their choices. Beating the logit would be
+surprising. Losing to it is not, by itself, evidence that "LLMs cannot
+represent travellers". It is evidence about these three models, this
+prompt, and this sample. A larger Qwen was the obvious objection to the
+1.5B result. That comparison is in section 10.
 
 Read the probabilities, not only the argmax, for the same reason as in
 section 7. An elasticity is a change in the mean predicted probability
@@ -284,10 +287,12 @@ four-parameter model.
 The dataset is public and widely used in teaching. A model could in
 principle have seen the aggregate shares during pretraining. On the 84
 tasks where time, cost, and headway were set equal, the base MNL still
-put 44.7% probability on Swissmetro and the LLM put 46.7% on the car
-and 27.4% on Swissmetro. The label prior in this run favours the car.
-A 1.5B model is also weak enough that memorising a 1990s survey is not
-the most likely explanation of its errors. The numbers are in section 10.
+put 44.7% probability on Swissmetro. The 1.5B model put 46.7% on the car
+and 27.4% on Swissmetro. The 3B model put 88.3% on Swissmetro and 0.2%
+on the car. The 7B model put 71.5% on Swissmetro and 0% on the car.
+The label prior changes with size: a car prior at 1.5B, a Swissmetro
+prior after that. Equal attributes do not produce the logit's shares at
+any of the three sizes. The numbers are in section 10.
 
 **What would you do if a reviewer said the LLM prompt is arbitrary?**
 Agree that one wording is one wording. The files `prompts/system.txt` and
@@ -299,21 +304,23 @@ the training people, with the test people touched once.
 
 ## 10. What the comparison actually found
 
-These numbers are from `results/summary.json` for one local model:
-Qwen2.5-1.5B-Instruct, 4-bit `Q4_K_M`, run with llama.cpp. Nothing was
-sampled. The next-token probabilities of the digits 1, 2, and 3 were
-renormalised over the modes available in that task. The same prompt file
-and the same weights give the same distribution.
+These numbers are from `results/summary.json`. The models are
+Qwen2.5-Instruct at 1.5B, 3B, and 7B, 4-bit `Q4_K_M`, run with llama.cpp.
+Nothing was sampled. The next-token probabilities of the digits 1, 2, and
+3 were renormalised over the modes available in that task. The same prompt
+file and the same weights give the same distribution.
 
 The evaluation is 420 tasks from 147 held-out people (at most four tasks
 each). Eight tasks had already been used to check that the reply was a
 digit and to time the machine; three of those eight were in the test
 people, and those three are not among the 420. A 24-person pilot on the
-training respondents had a format rate of 1.000 and was not used to
-change the wording. Elasticities use 84 of the 420 tasks (71 people).
-Cost shocks use the 76 of those 84 in which the person pays a fare.
-Percentage changes of a zero fare, which is what a pass holder faces,
-would not be a real change.
+training respondents had a format rate of 1.000 for each model and was
+not used to change the wording. Elasticities for 1.5B and 3B use 84 of
+the 420 tasks (71 people). Cost shocks use the 76 of those 84 in which
+the person pays a fare. The 7B model is about 3.7 seconds per prompt, so
+its time and cost shocks use 36 of those 84 (seed 61, one task per
+person). Accuracy, shares, the pass split, and the equal-attribute probe
+use the same tasks at every size.
 
 On those 420 tasks:
 
@@ -322,52 +329,72 @@ On those 420 tasks:
 | Always Swissmetro | 57.4% | −0.907 (constants-only) | hard prediction is 100% Swissmetro |
 | Base MNL | 63.1% | −0.851 | 13.4% / 58.0% / 28.7% |
 | Richer MNL | 67.1% | −0.771 | 12.9% / 57.3% / 29.8% |
-| LLM | 34.3% | −1.650 | 29.6% / 12.7% / 57.7% |
+| 1.5B | 34.3% | −1.650 | 29.6% / 12.7% / 57.7% |
+| 3B | 57.4% | −4.698 | 0.05% / 99.95% / 0.00% |
+| 7B | 53.8% | −6.713 | 6.7% / 93.3% / 0.04% |
 
 Observed shares on the same tasks: 13.8% / 57.4% / 28.8%. A respondent
-bootstrap (1,000 resamples of the 147 people) puts the LLM accuracy in
-28.1% to 40.7%, and the gap "base MNL minus LLM" in 18.8 to 39.5
-percentage points.
+bootstrap (1,000 resamples of the 147 people) puts the gap "base MNL
+minus language model" at 18.8 to 39.5 points for 1.5B, 0.7 to 11.0 for
+3B, and 3.2 to 15.3 for 7B. All three intervals stay above zero.
 
-Read that table in both directions.
+Read the table in both directions.
 
 The logit probabilities sit on the observed shares. Its hard prediction
 still never selects the train, for the reason in section 7. Accuracy
 alone makes the base MNL look like a model that has forgotten the train.
 The probabilities have not.
 
-The LLM's hard prediction selects the car on 78.6% of tasks and
+The 1.5B hard prediction selects the car on 78.6% of tasks and
 Swissmetro on 1.4% (6 of 420). It gets 2 of the 241 Swissmetro choices
-right. Its mean probability on the chosen alternative is 0.344, and its
-log-likelihood is far below the constants-only logit. Correlation with
-the base MNL is 0.38 for the train probability, −0.04 for Swissmetro,
-and 0.36 for the car. They agree on the hard prediction 16.0% of the time.
+right. Its log-likelihood on the 420 tasks is −693. The 3B model
+hard-predicts Swissmetro on every task, so its accuracy equals the
+majority rule and its log-likelihood falls to −1,973. The 7B model
+hard-predicts Swissmetro on 93.6% of tasks and the train on 6.4%, never
+the car. It is right on 221 of 241 Swissmetro choices and 5 of 58 train
+choices. Its accuracy is 53.8%, which is 3.6 points below always picking
+Swissmetro (interval 0.7 to 6.8 points below), and its log-likelihood is
+−2,819. Bigger, inside this family, moves the hard prediction toward the
+majority class and makes the probabilities worse.
 
-The annual pass is a place where the LLM follows the data and the base
-logit does not. Among the 41 pass-holder tasks, the observed train share
-is 73.2% and the LLM's mean train probability is 78.3%. Among the 379
-other tasks the observed train share is 7.4% and the LLM's is 24.3%.
-The base MNL, which only knows that the fare is zero, puts 16.6% on the
-train for pass holders and 13.0% for everyone else. Removing the sentence
-that names the pass, while leaving the fares at zero, drops the LLM's
-train probability on those 41 tasks from 78.3% to 60.1%. The wording
-matters, and so do the zeros. Sixteen people is a thin basis for a
-stronger claim.
+The annual pass is a place where the 1.5B model follows the data and the
+larger models do not. Among the 41 pass-holder tasks, the observed train
+share is 73.2%. Mean train probability: 78.3% at 1.5B, 0.002% at 3B,
+0.04% at 7B, and 16.6% for the base MNL. Among the 379 other tasks the
+observed train share is 7.4%, and the four train probabilities are
+24.3%, 0.06%, 7.4%, and 13.0%. Removing the sentence that names the
+pass, while leaving the fares at zero, drops the 1.5B train probability
+on those 41 tasks from 78.3% to 60.1%. It leaves the 3B model on
+Swissmetro. It raises the 7B train probability from 0.04% to 70.2%.
+The words "General Abonnement" help the small model and push the 7B
+model off the train. Sixteen people is a thin basis for a stronger claim.
 
-The trade-off check goes the other way. On the 84-task shock sample, every
-base-MNL own elasticity for train and Swissmetro time and cost is
-negative, and the bootstrap interval excludes zero. Making the train 50%
-slower moves the MNL train probability from 12.5% to 5.4% (elasticity
-−1.14). The LLM probability moves from 28.0% to 30.1% (elasticity +0.16,
-interval +0.04 to +0.31). Making the train 50% faster also lowers the
-LLM's train probability. A central difference of ±10 minutes and ±10 CHF
-recovers a value of time of 72.6 CHF/hour from the MNL, the same number
-as \(60 \beta_t / \beta_c\) on the training respondents. The same
-difference applied to the LLM moves the share in the wrong direction for
-both time and cost, so the ratio is not reported as a value of time.
+The trade-off check does not produce a language-model value of time at
+any size. On the 84-task shock sample, every base-MNL own elasticity for
+train and Swissmetro time and cost is negative, and the bootstrap
+interval excludes zero. Making the train 50% slower moves the MNL train
+probability from 12.5% to 5.4%. It moves the 1.5B probability from 28.0%
+to 30.1%. A central difference of ±10 minutes and ±10 CHF recovers
+72.6 CHF/hour from the MNL, the same number as \(60 \beta_t / \beta_c\)
+on the training respondents. The same difference applied to each language
+model fails the sign-and-magnitude rule in `results/implied_vot.csv`,
+including on the 31 tasks that all three models share. Do not quote the
+7B Swissmetro ratio near 1,430 CHF/hour. The ±10 CHF shift there moves
+the share by about 0.05 percentage points, and dividing by a near-zero
+cost response is the mistake section 8 warns about.
 
-A sentence you can defend: this 1.5B model, with this prompt, reproduces
-the pass-holder's tilt toward the existing train and does not reproduce
-the time and cost trade-off, or the Swissmetro share, that the multinomial
-logit was built to capture. That is a result about one small model and
-one wording. It is the result this repository measured.
+What the 7B model does show is a level shift under a large shock, on its
+36-task subset. Making Swissmetro 50% slower cuts its probability from
+99.8% to 80.0% (elasticity −0.40, interval −0.63 to −0.19). Making the
+train 50% faster raises the train probability from 0.16% to 24.5%. The
+3B model, already at 99.95% Swissmetro, barely moves under the same
+shocks. A value of time needs both derivatives, at a small shift, with
+the right signs. That is not what these files contain.
+
+A sentence you can defend: with this prompt, the 1.5B model has a car
+prior and follows the annual pass; the 3B and 7B models have a Swissmetro
+prior and do not follow the pass; none of the three recovers the logit's
+time and cost trade-off. Accuracy rises toward the majority rule and then
+slips back. Log-likelihood gets worse. That is a result about three sizes
+of one model family and one wording. It is the result this repository
+measured.

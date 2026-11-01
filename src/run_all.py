@@ -25,6 +25,8 @@ from src.config import (
     ELAST_N,
     FIGURES,
     LLM_N,
+    SEVEN_B_SHOCK_N,
+    SEVEN_B_SHOCK_SEED,
     MAX_TASKS_PER_PERSON,
     MODE_KEYS,
     MODE_NAMES,
@@ -288,8 +290,16 @@ def analyse_llm(
     oos_models: dict,
     pilot_summary: dict,
     fingerprint: str,
+    shock_df: pd.DataFrame | None = None,
 ) -> tuple[dict, dict]:
-    """Metrics for one instruct model on the shared tasks. Returns (block, curves)."""
+    """Metrics for one instruct model on the shared tasks. Returns (block, curves).
+
+    `elast_df` is the shared 84-task probe (equalised attributes). `shock_df`
+    is the frame whose time and cost shocks were actually scored. For 1.5B
+    and 3B those are the same 84 tasks. For 7B, shocks use a subset.
+    """
+    if shock_df is None:
+        shock_df = elast_df
     key = spec.key
     y = llm_df["y"].to_numpy(dtype=int)
     ids = llm_df["ID"].to_numpy()
@@ -329,7 +339,7 @@ def analyse_llm(
     for k in range(3):
         corr[MODE_KEYS[k]] = float(np.corrcoef(probas["mnl"][:, k], probas[key][:, k])[0, 1])
 
-    paying = elast_df["GA"].to_numpy() == 0
+    paying = shock_df["GA"].to_numpy() == 0
 
     def mnl_p(result, frame: pd.DataFrame) -> np.ndarray:
         return predict_proba(frame, result)
@@ -340,29 +350,29 @@ def analyse_llm(
     curves: dict[tuple[str, str], list[dict]] = {}
     elast_rows = []
     mode_index = {"train": 0, "sm": 1}
-    base_mnl_e = mnl_p(train_base, elast_df)
-    base_llm_e = llm_p("base", elast_df)
+    base_mnl_e = mnl_p(train_base, shock_df)
+    base_llm_e = llm_p("base", shock_df)
     for mode in ("train", "sm"):
         for attribute in ("time", "cost"):
             use_paying = attribute == "cost"
-            mask = paying if use_paying else np.ones(len(elast_df), dtype=bool)
+            mask = paying if use_paying else np.ones(len(shock_df), dtype=bool)
             if int(mask.sum()) < 5:
                 print(f"Skipping {mode} {attribute}: only {int(mask.sum())} tasks")
                 continue
-            frame_m = take(elast_df, mask)
+            frame_m = take(shock_df, mask)
             if len(frame_m) != int(mask.sum()):
                 raise RuntimeError("Shock subsample is misaligned.")
             draws_m = respondent_draws(frame_m["ID"].to_numpy(), N_BOOT, SEED + 1)
             b_mnl = base_mnl_e[mask, mode_index[mode]]
             b_llm = base_llm_e[mask, mode_index[mode]]
             if len(b_mnl) != len(frame_m) or list(frame_m["obs_id"]) != list(
-                take(elast_df, mask)["obs_id"]
+                take(shock_df, mask)["obs_id"]
             ):
                 raise RuntimeError("Probability rows do not match the shock frame.")
             series = {("mnl", 0): b_mnl, (key, 0): b_llm}
             for pct in PCT_SHOCKS:
                 scenario = f"{mode}_{attribute}_{pct:+d}pct"
-                shocked = take(apply_attribute_shock(elast_df, mode, attribute, "pct", pct), mask)
+                shocked = take(apply_attribute_shock(shock_df, mode, attribute, "pct", pct), mask)
                 if list(shocked["obs_id"]) != list(frame_m["obs_id"]):
                     raise RuntimeError(f"Shock frame for {scenario} is not aligned.")
                 p_mnl = mnl_p(train_base, shocked)[:, mode_index[mode]]
@@ -381,7 +391,7 @@ def analyse_llm(
                             "sample": "paying" if use_paying else "all",
                             "pct": pct,
                             "n": int(mask.sum()),
-                            "n_people": int(pd.unique(elast_df.loc[mask, "ID"]).size),
+                            "n_people": int(pd.unique(shock_df.loc[mask, "ID"]).size),
                             **stat,
                         }
                     )
@@ -403,8 +413,8 @@ def analyse_llm(
         ("train", "TRAIN_TT", "train_cost"),
         ("sm", "SM_TT", "sm_cost"),
     ):
-        mask = (elast_df[time_col].to_numpy() >= 20) & (elast_df[cost_col].to_numpy() >= 10)
-        frame_m = take(elast_df, mask)
+        mask = (shock_df[time_col].to_numpy() >= 20) & (shock_df[cost_col].to_numpy() >= 10)
+        frame_m = take(shock_df, mask)
         if mask.sum() < 20:
             vot_rows.append(
                 {"mode": mode, "model": key, "n": int(mask.sum()), "note": "too few unclipped tasks"}
@@ -416,7 +426,7 @@ def analyse_llm(
             for level in (-10, 10):
                 scenario = f"{mode}_{attribute}_{level:+d}{suffix}"
                 shocked = take(
-                    apply_attribute_shock(elast_df, mode, attribute, "abs", float(level)),
+                    apply_attribute_shock(shock_df, mode, attribute, "abs", float(level)),
                     mask,
                 )
                 packs[(attribute, level, "mnl")] = mnl_p(train_base, shocked)[:, mode_index[mode]]
@@ -435,7 +445,7 @@ def analyse_llm(
             vot_rows.append(got)
 
     ga_fare = []
-    ga_elast = elast_df.loc[elast_df["GA"] == 1]
+    ga_elast = shock_df.loc[shock_df["GA"] == 1]
     if len(ga_elast) >= 8:
         for mode in ("train", "sm"):
             scenario = f"{mode}_cost_+10chf"
@@ -531,7 +541,15 @@ def analyse_llm(
         "ga_plus_10chf": ga_fare,
         "ga_wording": ga_wording,
         "equalised": equalised,
-        "n_paying": int(paying.sum()),
+        "n_paying": int((elast_df["GA"] == 0).sum()),
+        "shock_sample": {
+            "n": int(len(shock_df)),
+            "n_people": int(shock_df["ID"].nunique()),
+            "n_paying": int((shock_df["GA"] == 0).sum()),
+            "parent_n": int(len(elast_df)),
+            "seed": SEVEN_B_SHOCK_SEED if len(shock_df) != len(elast_df) else SEED + 11,
+            "max_per_person": 1 if len(shock_df) != len(elast_df) else ELAST_MAX_TASKS_PER_PERSON,
+        },
     }
     return block, curves
 
@@ -790,11 +808,15 @@ def main() -> None:
     llm_frame = test_df.loc[~test_df["obs_id"].isin(probe_ids)].copy()
     llm_df = stratified_task_sample(llm_frame, args.llm_n, SEED + 7, MAX_TASKS_PER_PERSON)
     elast_df = stratified_task_sample(llm_df, args.elast_n, SEED + 11, ELAST_MAX_TASKS_PER_PERSON)
+    seven_shock = stratified_task_sample(
+        elast_df, min(SEVEN_B_SHOCK_N, len(elast_df)), SEVEN_B_SHOCK_SEED, max_per_id=1
+    )
     pilot_df = stratified_task_sample(train_df, PILOT_N, SEED + 3, max_per_id=1)
     ga_df = llm_df.loc[llm_df["GA"] == 1].copy()
     print(
         f"LLM sample {len(llm_df)} tasks / {llm_df['ID'].nunique()} people; "
         f"elasticity {len(elast_df)} / {elast_df['ID'].nunique()}; "
+        f"7B shocks {len(seven_shock)} / {seven_shock['ID'].nunique()}; "
         f"GA holders in LLM sample {len(ga_df)}; pilot {len(pilot_df)}"
     )
     sample_index = pd.concat(
@@ -803,6 +825,7 @@ def main() -> None:
             pilot_df.assign(role="pilot_train"),
             llm_df.assign(role="llm_eval"),
             elast_df.assign(role="elasticity"),
+            seven_shock.assign(role="shock_7b"),
         ],
         ignore_index=True,
     )
@@ -878,12 +901,17 @@ def main() -> None:
     specs = parse_model_keys(args.models)
     fingerprint = prompt_fingerprint()
     pilot_jobs: list[tuple[str, pd.DataFrame, str]] = [("pilot", pilot_df, "base")]
-    rest_jobs: list[tuple[str, pd.DataFrame, str]] = [("base", llm_df, "base")]
-    rest_jobs.extend(shock_jobs(elast_df))
-    rest_jobs.append(("equalised", equalise_attributes(elast_df), "equalised"))
-    if len(ga_df):
-        rest_jobs.append(("ga_silent", ga_df, "ga_silent"))
-    all_jobs = pilot_jobs + ([] if args.pilot_only else rest_jobs)
+
+    def jobs_for(spec: ModelSpec) -> list[tuple[str, pd.DataFrame, str]]:
+        # 7B keeps the 420 base tasks, the 84-task equalised probe, and the
+        # pass-wording check. Only the time/cost grid is reduced.
+        shock_df = seven_shock if spec.key == "7b" else elast_df
+        rest: list[tuple[str, pd.DataFrame, str]] = [("base", llm_df, "base")]
+        rest.extend(shock_jobs(shock_df))
+        rest.append(("equalised", equalise_attributes(elast_df), "equalised"))
+        if len(ga_df):
+            rest.append(("ga_silent", ga_df, "ga_silent"))
+        return pilot_jobs + rest
 
     blocks: dict[str, dict] = {}
     curves_by_key: dict[str, dict] = {}
@@ -891,6 +919,7 @@ def main() -> None:
         print(f"=== {spec.model_id} ({spec.quant}) ===")
         cache_file = cache_path(spec)
         t_model = time.perf_counter()
+        model_jobs = jobs_for(spec)
         # Pilot first, so a model that ignores the digit format does not
         # spend the shock grid before we notice.
         score_scenarios(pilot_jobs, cache_file, spec)
@@ -898,8 +927,9 @@ def main() -> None:
         pilot_summary = pilot_block(pilot_pred, spec)
         if args.pilot_only:
             continue
-        raw_pred = score_scenarios(all_jobs, cache_file, spec)
-        pred = publish_predictions(all_jobs, raw_pred, spec)
+        raw_pred = score_scenarios(model_jobs, cache_file, spec)
+        pred = publish_predictions(model_jobs, raw_pred, spec)
+        shock_df = seven_shock if spec.key == "7b" else elast_df
         block, curves = analyse_llm(
             pred,
             spec,
@@ -911,6 +941,7 @@ def main() -> None:
             oos_models,
             pilot_summary,
             fingerprint,
+            shock_df=shock_df,
         )
         block["seconds_model"] = time.perf_counter() - t_model
         blocks[spec.key] = block
@@ -980,6 +1011,7 @@ def main() -> None:
                 "ga_train_probability": block["ga_split"]["ga"]["llm"][0],
                 "noga_train_probability": block["ga_split"]["no_ga"]["llm"][0],
                 "implied_vot": vot,
+                "shock_n": block["shock_sample"]["n"],
                 "format": block["format"],
             }
         )
@@ -998,10 +1030,53 @@ def main() -> None:
                 "hard_sm": row["hard_share"][1],
                 "hard_car": row["hard_share"][2],
                 "mnl_minus_llm": row["mnl_minus_llm"],
+                "shock_n": row["shock_n"],
+                "ga_p_train": row["ga_train_probability"],
+                "equalised_p_car": row["equalised_prob_share"][2],
+                "equalised_p_sm": row["equalised_prob_share"][1],
             }
             for row in comparison
         ]
     ).to_csv(RESULTS / "model_size.csv", index=False)
+
+    # Same 36 tasks for every model's arc value of time, so the size
+    # comparison is not a mix of the 84-task grid and the 7B subset.
+    common_vot = []
+    mnl_vot_kept = False
+    for spec in specs:
+        if spec.key == "7b":
+            src_vot = blocks["7b"]["implied_vot"]
+        else:
+            cached = pd.read_csv(cache_path(spec)).drop_duplicates(
+                ["obs_id", "scenario"], keep="last"
+            )
+            src, _ = analyse_llm(
+                cached,
+                spec,
+                llm_df,
+                elast_df,
+                ga_df,
+                train_df,
+                train_base,
+                oos_models,
+                blocks[spec.key]["pilot"],
+                fingerprint,
+                shock_df=seven_shock,
+            )
+            src_vot = src["implied_vot"]
+        for row in src_vot:
+            tagged = dict(row)
+            if tagged.get("model") == "mnl":
+                if mnl_vot_kept:
+                    continue
+                mnl_vot_kept = True
+                tagged["llm_key"] = "mnl"
+            else:
+                tagged["llm_key"] = spec.key
+            tagged["shock_n"] = int(len(seven_shock))
+            tagged["shock_seed"] = SEVEN_B_SHOCK_SEED
+            common_vot.append(tagged)
+    pd.DataFrame(common_vot).to_csv(RESULTS / "implied_vot_common.csv", index=False)
 
     first = next(iter(blocks.values()))
     summary = {
@@ -1029,9 +1104,26 @@ def main() -> None:
             },
             "fingerprint": fingerprint,
             "models": [spec.model_id for spec in specs],
+            "seven_b_shock": {
+                "n": int(len(seven_shock)),
+                "n_people": int(seven_shock["ID"].nunique()),
+                "seed": SEVEN_B_SHOCK_SEED,
+                "max_per_person": 1,
+                "parent_n": int(len(elast_df)),
+                "parent_seed": SEED + 11,
+                "reason": (
+                    "Qwen2.5-7B-Instruct Q4_K_M takes about 4.4 seconds per prompt "
+                    "on this machine. The full shock grid on 84 tasks would add "
+                    "about three hours after the 420 base tasks, so time and cost "
+                    "shocks for 7B use this subset of the 84. Accuracy, market "
+                    "shares, the pass split, and the equalised-attribute probe "
+                    "still use the same tasks as the 1.5B and 3B models."
+                ),
+            },
         },
         "llms": blocks,
         "comparison": comparison,
+        "shock_common_vot": common_vot,
         "seconds_total": time.perf_counter() - started,
     }
     write_json(RESULTS / "summary.json", summary)

@@ -52,6 +52,13 @@ TEST_FRACTION = 0.20
 # a 84-task shock subsample is roughly 45 minutes.
 LLM_N = 420
 ELAST_N = 84
+# Qwen2.5-7B-Instruct Q4_K_M is about 4.4 seconds per prompt here. The full
+# 84-task shock grid would add about three hours after the 420 base tasks.
+# Time and cost shocks for that model use 36 tasks drawn from the 84
+# (seed 61, at most one per person). Accuracy, shares, the pass split, and
+# the equalised-attribute probe stay on the same tasks as the smaller models.
+SEVEN_B_SHOCK_N = 36
+SEVEN_B_SHOCK_SEED = SEED + 19
 PILOT_N = 24
 PROBE_N = 8
 MAX_TASKS_PER_PERSON = 4
